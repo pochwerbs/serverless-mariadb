@@ -9,9 +9,10 @@
  * @license MIT
  */
 
-module.exports = (params) => {
+export default (params) => {
 
   // Mutable values
+  const MARIA = require('mariadb')
   let client = null // Init null client object
   let counter = 0 // Total reuses counter
   let errors = 0 // Error count
@@ -34,7 +35,7 @@ module.exports = (params) => {
   ]
 
   // Init setting values
-  let MYSQL, manageConns, cap, base, maxRetries, connUtilization, backoff,
+  let manageConns, cap, base, maxRetries, connUtilization, backoff,
     zombieMinTimeout, zombieMaxTimeout, maxConnsFreq, usedConnsFreq,
     onConnect, onConnectError, onRetry, onClose, onError, onKill, onKillError, PromiseLibrary
 
@@ -50,11 +51,11 @@ module.exports = (params) => {
   const resetRetries = () => retries = 0
   const getErrorCount = () => errors
   const getConfig = () => _cfg
-  const config = (args) => Object.assign(_cfg,args)
+  const config = (args) => Object.assign(_cfg, args)
   const delay = ms => new PromiseLibrary(res => setTimeout(res, ms))
-  const randRange = (min,max) => Math.floor(Math.random() * (max - min + 1)) + min
+  const randRange = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min
   const fullJitter = () => randRange(0, Math.min(cap, base * 2 ** retries))
-  const decorrelatedJitter = (sleep=0) => Math.min(cap, randRange(base, sleep * 3))
+  const decorrelatedJitter = (sleep = 0) => Math.min(cap, randRange(base, sleep * 3))
 
 
   /********************************************************************/
@@ -66,19 +67,21 @@ module.exports = (params) => {
   const connect = async (wait) => {
     try {
       await _connect()
-    } catch(e) {
+    } catch (e) {
       if (tooManyConnsErrors.includes(e.code) && retries < maxRetries) {
         retries++
         wait = Number.isInteger(wait) ? wait : 0
         let sleep = backoff === 'decorrelated' ? decorrelatedJitter(wait) :
-          typeof backoff === 'function' ? backoff(wait,retries) :
+          typeof backoff === 'function' ? backoff(wait, retries) :
             fullJitter()
-        onRetry(e,retries,sleep,typeof backoff === 'function' ? 'custom' : backoff) // fire onRetry event
+        onRetry(e, retries, sleep, typeof backoff === 'function' ? 'custom' : backoff) // fire onRetry event
         await delay(sleep).then(() => connect(sleep))
       } else {
         onConnectError(e) // Fire onConnectError event
         throw new Error(e)
       }
+    } finally {
+      client && console.log(`connected using threadId: ${client.info.threadId}`)
     }
   } // end connect
 
@@ -92,31 +95,31 @@ module.exports = (params) => {
       // Return a new promise
       return new PromiseLibrary((resolve, reject) => {
 
-        // Connect to the MySQL database
-        client = MYSQL.createConnection(_cfg)
+        // Connect to the MariaDB database
+        MARIA.createConnection(_cfg)
+          .then((conn) => {
+            // Wait until MariaDB is connected and ready before moving on
+            client = conn
+            resetRetries()
+            onConnect(conn)
 
-        // Wait until MySQL is connected and ready before moving on
-        client.connect(function(err) {
-          if (err) {
+            // Add error listener (reset client on failures)
+            client.on('error', async err => {
+              errors++
+              resetClient() // reset client
+              resetCounter() // reset counter
+              onError(err) // fire onError event (PROTOCOL_CONNECTION_LOST)
+            })
+
+            return resolve(true)
+          }).catch((err) => {
             resetClient()
             reject(err)
-          } else {
-            resetRetries()
-            onConnect(client)
-            return resolve(true)
-          }
-        })
+          })
 
-        // Add error listener (reset client on failures)
-        client.on('error', async err => {
-          errors++
-          resetClient() // reset client
-          resetCounter() // reset counter
-          onError(err) // fire onError event (PROTOCOL_CONNECTION_LOST)
-        })
       }) // end promise
 
-    // Else the client already exists
+      // Else the client already exists
     } else {
       return PromiseLibrary.resolve()
     } // end if-else
@@ -139,10 +142,10 @@ module.exports = (params) => {
       let usedConns = await getTotalConnections()
 
       // If over utilization threshold, try and clean up zombies
-      if (usedConns.total/maxConns.total > connUtilization) {
+      if (usedConns.total / maxConns.total > connUtilization) {
 
         // Calculate the zombie timeout
-        let timeout = Math.min(Math.max(usedConns.maxAge,zombieMinTimeout),zombieMaxTimeout)
+        let timeout = Math.min(Math.max(usedConns.maxAge, zombieMinTimeout), zombieMaxTimeout)
 
         // Kill zombies if they are within the timeout
         let killedZombies = timeout <= usedConns.maxAge ? await killZombieConnections(timeout) : 0
@@ -152,7 +155,7 @@ module.exports = (params) => {
           quit()
         }
 
-      // If zombies exist that are more than the max timeout, kill them
+        // If zombies exist that are more than the max timeout, kill them
       } else if (usedConns.maxAge > zombieMaxTimeout) {
         await killZombieConnections(zombieMaxTimeout)
       }
@@ -163,6 +166,7 @@ module.exports = (params) => {
   // Function that explicitly closes the MySQL connection.
   const quit = () => {
     if (client !== null) {
+      console.log(`killing connection with threadId: ${client.info.threadId}`)
       client.end() // Quit the connection.
       resetClient() // reset the client to null
       resetCounter() // reset the reuse counter
@@ -176,37 +180,42 @@ module.exports = (params) => {
   /********************************************************************/
 
   // Main query function
-  const query = async function(...args) {
+  const query = async (...args) => {
 
     // Establish connection
-    await connect()
+    client === null && await connect()
 
     // Run the query
-    return new PromiseLibrary((resolve,reject) => {
+    return new PromiseLibrary((resolve, reject) => {
       if (client !== null) {
         // If no args are passed in a transaction, ignore query
         if (this && this.rollback && args.length === 0) { return resolve([]) }
-        client.query(...args, async (err, results) => {
-          if (err && err.code === 'PROTOCOL_SEQUENCE_TIMEOUT') {
-            client.destroy() // destroy connection on timeout
-            resetClient() // reset the client
-            reject(err) // reject the promise with the error
-          } else if (
-            err && (/^PROTOCOL_ENQUEUE_AFTER_/.test(err.code) 
-            || err.code === 'PROTOCOL_CONNECTION_LOST' 
-            || err.code === 'EPIPE')
-          ) {
-            resetClient() // reset the client
-            return resolve(query(...args)) // attempt the query again
-          } else if (err) {
-            if (this && this.rollback) {
-              await query('ROLLBACK')
-              this.rollback(err)
+        client.query(...args)
+          .then((results) => resolve(results))
+          .catch(async (err) => {
+            if (err && err.code === 'PROTOCOL_SEQUENCE_TIMEOUT') {
+              client.destroy() // destroy connection on timeout
+              resetClient() // reset the client
+              reject(err) // reject the promise with the error
+            } else if (
+              err && (/^PROTOCOL_ENQUEUE_AFTER_/.test(err.code)
+                || err.code === 'PROTOCOL_CONNECTION_LOST'
+                || err.code === 'PROTOCOL_CONNECTION_LOST'
+                || err.code === 'PROTOCOL_CONNECTION_LOST'
+                || err.code === 'PROTOCOL_CONNECTION_LOST'
+                || err.code === 'PROTOCOL_CONNECTION_LOST'
+                || err.code === 'EPIPE')
+            ) {
+              resetClient() // reset the client
+              return resolve(query(...args)) // attempt the query again
+            } else if (err) {
+              if (this && this.rollback) {
+                await query('ROLLBACK')
+                this.rollback(err)
+              }
+              reject(err)
             }
-            reject(err)
-          }
-          return resolve(results)
-        })
+          })
       }
     })
 
@@ -217,7 +226,7 @@ module.exports = (params) => {
   const getMaxConnections = async () => {
 
     // If cache is expired
-    if (Date.now()-_maxConns.updated > maxConnsFreq) {
+    if (Date.now() - _maxConns.updated > maxConnsFreq) {
 
       let results = await query(
         `SELECT IF(@@max_user_connections > 0,
@@ -244,12 +253,12 @@ module.exports = (params) => {
   const getTotalConnections = async () => {
 
     // If cache is expired
-    if (Date.now()-_usedConns.updated > usedConnsFreq) {
+    if (Date.now() - _usedConns.updated > usedConnsFreq) {
 
       let results = await query(
         `SELECT COUNT(ID) as total, MAX(time) as max_age
         FROM information_schema.processlist
-        WHERE (user = ? AND @@max_user_connections > 0) OR true`,[_cfg.user])
+        WHERE (user = ? AND @@max_user_connections > 0) OR true`, [_cfg.user])
 
       _usedConns = {
         total: results[0].total || 0,
@@ -274,15 +283,15 @@ module.exports = (params) => {
       `SELECT ID,time FROM information_schema.processlist
         WHERE command = 'Sleep' AND time >= ? AND user = ?
         ORDER BY time DESC`,
-      [!isNaN(timeout) ? timeout : 60*15, _cfg.user])
+      [!isNaN(timeout) ? timeout : 60 * 15, _cfg.user])
 
     // Kill zombies
     for (let i = 0; i < zombies.length; i++) {
       try {
-        await query('KILL ?',zombies[i].ID)
+        await query('KILL ?', zombies[i].ID)
         onKill(zombies[i]) // fire onKill event
         killedZombies++
-      } catch(e) {
+      } catch (e) {
         // if (e.code !== 'ER_NO_SUCH_THREAD') console.log(e)
         onKillError(e) // fire onKillError event
       }
@@ -301,10 +310,10 @@ module.exports = (params) => {
   const transaction = () => {
 
     let queries = [] // keep track of queries
-    let rollback = () => {} // default rollback event
+    let rollback = () => { } // default rollback event
 
     return {
-      query: function(...args) {
+      query: function (...args) {
         if (typeof args[0] === 'function') {
           queries.push(args[0])
         } else {
@@ -312,16 +321,16 @@ module.exports = (params) => {
         }
         return this
       },
-      rollback: function(fn) {
+      rollback: function (fn) {
         if (typeof fn === 'function') { rollback = fn }
         return this
       },
-      commit: async function() { return await commit(queries,rollback) }
+      commit: async function () { return await commit(queries, rollback) }
     }
   }
 
   // Commit transaction by running queries
-  const commit = async (queries,rollback) => {
+  const commit = async (queries, rollback) => {
 
     let results = [] // keep track of results
 
@@ -331,7 +340,7 @@ module.exports = (params) => {
     // Loop through queries
     for (let i = 0; i < queries.length; i++) {
       // Execute the queries, pass the rollback as context
-      let result = await query.apply({rollback},queries[i](results[results.length-1],results))
+      let result = await query.apply({ rollback }, queries[i](results[results.length - 1], results))
       // Add the result to the main results accumulator
       results.push(result)
     }
@@ -350,7 +359,6 @@ module.exports = (params) => {
 
   let cfg = typeof params === 'object' && !Array.isArray(params) ? params : {}
 
-  MYSQL = cfg.library || require('mysql')
   PromiseLibrary = cfg.promise || Promise
 
   // Set defaults for connection management
@@ -359,26 +367,25 @@ module.exports = (params) => {
   base = Number.isInteger(cfg.base) ? cfg.base : 2 // default to 2 ms
   maxRetries = Number.isInteger(cfg.maxRetries) ? cfg.maxRetries : 50 // default to 50 attempts
   backoff = typeof cfg.backoff === 'function' ? cfg.backoff :
-    cfg.backoff && ['full','decorrelated'].includes(cfg.backoff.toLowerCase()) ?
+    cfg.backoff && ['full', 'decorrelated'].includes(cfg.backoff.toLowerCase()) ?
       cfg.backoff.toLowerCase() : 'full' // default to full Jitter
   connUtilization = !isNaN(cfg.connUtilization) ? cfg.connUtilization : 0.8 // default to 0.7
   zombieMinTimeout = Number.isInteger(cfg.zombieMinTimeout) ? cfg.zombieMinTimeout : 3 // default to 3 seconds
-  zombieMaxTimeout = Number.isInteger(cfg.zombieMaxTimeout) ? cfg.zombieMaxTimeout : 60*15 // default to 15 minutes
-  maxConnsFreq = Number.isInteger(cfg.maxConnsFreq) ? cfg.maxConnsFreq : 15*1000 // default to 15 seconds
+  zombieMaxTimeout = Number.isInteger(cfg.zombieMaxTimeout) ? cfg.zombieMaxTimeout : 60 * 15 // default to 15 minutes
+  maxConnsFreq = Number.isInteger(cfg.maxConnsFreq) ? cfg.maxConnsFreq : 15 * 1000 // default to 15 seconds
   usedConnsFreq = Number.isInteger(cfg.usedConnsFreq) ? cfg.usedConnsFreq : 0 // default to 0 ms
 
   // Event handlers
-  onConnect = typeof cfg.onConnect === 'function' ? cfg.onConnect : () => {}
-  onConnectError = typeof cfg.onConnectError === 'function' ? cfg.onConnectError : () => {}
-  onRetry = typeof cfg.onRetry === 'function' ? cfg.onRetry : () => {}
-  onClose = typeof cfg.onClose === 'function' ? cfg.onClose : () => {}
-  onError = typeof cfg.onError === 'function' ? cfg.onError : () => {}
-  onKill = typeof cfg.onKill === 'function' ? cfg.onKill : () => {}
-  onKillError = typeof cfg.onKillError === 'function' ? cfg.onKillError : () => {}
+  onConnect = typeof cfg.onConnect === 'function' ? cfg.onConnect : () => { }
+  onConnectError = typeof cfg.onConnectError === 'function' ? cfg.onConnectError : () => { }
+  onRetry = typeof cfg.onRetry === 'function' ? cfg.onRetry : () => { }
+  onClose = typeof cfg.onClose === 'function' ? cfg.onClose : () => { }
+  onError = typeof cfg.onError === 'function' ? cfg.onError : () => { }
+  onKill = typeof cfg.onKill === 'function' ? cfg.onKill : () => { }
+  onKillError = typeof cfg.onKillError === 'function' ? cfg.onKillError : () => { }
 
   let connCfg = typeof cfg.config === 'object' && !Array.isArray(cfg.config) ? cfg.config : {}
-  let escape = MYSQL.escape
-  // Set MySQL configs
+  // Set MariaDB configs
   config(connCfg)
 
 
@@ -388,7 +395,6 @@ module.exports = (params) => {
     config,
     query,
     end,
-    escape,
     quit,
     transaction,
     getCounter,

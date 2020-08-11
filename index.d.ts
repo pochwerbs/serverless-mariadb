@@ -1,90 +1,112 @@
-// Type definitions for serverless-mysql
+// Type definitions for serverless-mariadb
 
-import * as MySQL from 'mysql'
+import * as MariaDB from 'mariadb'
 
 // https://github.com/microsoft/TypeScript/issues/8335#issuecomment-215194561
-declare namespace serverlessMysql {
+declare namespace serverlessMaria {
   export type Config = {
-    /**
-     * Function mysql library
-     */
-    library?: Function
 
     /**
-     * Function promise library
+     * Promise library.
+     * (Default: Promise)
      */
     promise?: Function
 
     /**
-     * String or Function  Backoff algorithm to be used when retrying connections. Possible values are full and decorrelated, or you can also specify your own algorithm. See Connection Backoff for more information.  full
+     * Backoff algorithm to be used when retrying connections.
+     * Possible values are full and decorrelated, or you can also specify your
+     * own algorithm. See Connection Backoff for more information.
+     * (Default: full)
      */
     backoff?: string | Function
     /**
-     * Integer  Number of milliseconds added to random backoff values.  2
+     * Number of milliseconds added to random backoff values.
+     * (Default: 2)
      */
     base?: number
     /**
-     * Integer  Maximum number of milliseconds between connection retries.  100
+     * Maximum number of milliseconds between connection retries.
+     * (Default: 100)
      */
     cap?: number
     /**
-     * Object  A mysql configuration object as defined here  {}
+     * A MariaDB configuration object as defined here.
+     * (Default: {})
      */
-    config?: MySQL.ConnectionConfig
+    config?: MariaDB.ConnectionConfig
     /**
-     * Number  The percentage of total connections to use when connecting to your MySQL server. A value of 0.75 would use 75% of your total available connections.  0.8
+     * The percentage of total connections to use when connecting to your
+     * MariaDB server. A value of 0.75 would use 75% of your total available
+     * connections.
+     * (Default: 0.8)
      */
     connUtilization?: number
     /**
-     * Boolean  Flag indicating whether or not you want serverless-mysql to manage MySQL connections for you.  true
+     * Flag indicating whether or not you want serverless-mariadb to manage
+     * MariaDB connections for you.
+     * (Default: true)
      */
     manageConns?: boolean
     /**
-     * Integer  The number of milliseconds to cache lookups of @@max_connections.  15000
+     * The number of milliseconds to cache lookups of @@max_connections.
+     * (Default: 15000)
      */
     maxConnsFreq?: number
     /**
-     * Integer  Maximum number of times to retry a connection before throwing an error.  50
+     * Maximum number of times to retry a connection before throwing an error.
+     * (Default: 50)
      */
     maxRetries?: number
     /**
-     * function  Event callback when the MySQL connection fires an error.
+     * Event callback when the MariaDB connection fires an error.
+     * (Default: () => {})
      */
     onError?: Function
     /**
-     * function  Event callback when MySQL connections are explicitly closed.
+     * Event callback when MariaDB connections are explicitly closed.
+     * (Default: () => {})
      */
     onClose?: Function
     /**
-     * function  Event callback when connections are succesfully established.
+     * Event callback when connections are succesfully established.
+     * (Default: () => {})
      */
     onConnect?: Function
     /**
-     * function  Event callback when connection fails.
+     * Event callback when connection fails.
+     * (Default: () => {})
      */
     onConnectError?: Function
     /**
-     * function  Event callback when connections are explicitly killed.
+     * Event callback when connections are explicitly killed.
+     * (Default: () => {})
      */
     onKill?: Function
     /**
-     * function  Event callback when a connection cannot be killed.
+     * Event callback when a connection cannot be killed.
+     * (Default: () => {})
      */
     onKillError?: Function
     /**
-     * function  Event callback when connections are retried.
+     * Event callback when connections are retried.
+     * (Default: () => {})
      */
     onRetry?: Function
     /**
-     * Integer  The number of milliseconds to cache lookups of current connection usage.  0
+     * The number of milliseconds to cache lookups of current connection usage.
+     * (Default: 0)
      */
     usedConnsFreq?: number
     /**
-     * Integer  The maximum number of seconds that a connection can stay idle before being recycled.  900
+     * The maximum number of seconds that a connection can stay idle before
+     * being recycled.
+     * (Default: 900)
      */
     zombieMaxTimeout?: number
     /**
-     * Integer  The minimum number of seconds that a connection must be idle before the module will recycle it.  3
+     * The minimum number of seconds that a connection must be idle before
+     * the module will recycle it.
+     * (Default: 3)
      */
     zombieMinTimeout?: number
   }
@@ -95,20 +117,20 @@ declare namespace serverlessMysql {
     commit<T = any>(): Promise<T[]>
   }
 
-  export type ServerlessMysql = {
+  export type methods = {
     connect(wait?: number): Promise<void>
-    config(config?: MySQL.ConnectionConfig): MySQL.ConnectionConfig
+    config(config?: MariaDB.ConnectionConfig): MariaDB.ConnectionConfig
     query<T>(...args): Promise<T>
     end(): Promise<void>
-    escape(str: string): MySQL.EscapeFunctions
+    escape(str: string): MariaDB.EscapeFunctions
     quit(): void
     transaction(): Transaction
     getCounter(): number
-    getClient(): MySQL.Connection
-    getConfig(): MySQL.ConnectionConfig
+    getClient(): MariaDB.Connection
+    getConfig(): MariaDB.ConnectionConfig
     getErrorCount(): number
   }
 }
 
-declare function serverlessMysql (cfg?: serverlessMysql.Config): serverlessMysql.ServerlessMysql
-export = serverlessMysql
+declare function init(cfg?: serverlessMaria.Config): serverlessMaria.methods
+export = init
