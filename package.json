@@ -1,10 +1,11 @@
 {
-  "name": "serverless-mysql",
-  "version": "1.5.4",
+  "name": "serverless-mariadb",
+  "version": "0.0.1",
   "description": "A module for managing MySQL connections at serverless scale.",
   "main": "index.js",
   "types": "index.d.ts",
   "scripts": {
+    "compile": "babel ./ --out-dir .compiled --source-maps --ignore ./node_modules",
     "test": "mocha --check-leaks --recursive",
     "test-cov": "nyc --reporter=html mocha --check-leaks --recursive",
     "test-ci": "nyc npm test && nyc report --reporter=text-lcov | ./node_modules/coveralls/bin/coveralls.js",
@@ -12,27 +13,27 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/jeremydaly/serverless-mysql.git"
+    "url": "git+https://github.com/pochwerbs/serverless-mariadb.git"
   },
   "keywords": [
     "serverless",
-    "mysql",
+    "mariadb",
     "max_connections",
     "scalability",
-    "rds",
-    "aurora serverless",
-    "aurora"
+    "rds"
   ],
-  "author": "Jeremy Daly <jeremy@jeremydaly.com>",
+  "author": "Mario Muñoz <mario.munoz@osom.com>",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/jeremydaly/serverless-mysql/issues"
+    "url": "https://github.com/pochwerbs/serverless-mariadb/issues"
   },
-  "homepage": "https://github.com/jeremydaly/serverless-mysql#readme",
+  "homepage": "https://github.com/pochwerbs/serverless-mariadb#readme",
   "dependencies": {
-    "mysql": "^2.18.1"
+    "mariadb": "^2.4.2"
   },
   "devDependencies": {
+    "babel-cli": "^6.26.0",
+    "babel-preset-env": "^1.7.0",
     "chai": "^4.2.0",
     "coveralls": "^3.0.11",
     "eslint": "^5.16.0",
@@ -42,9 +43,15 @@
     "rewire": "^4.0.1",
     "sinon": "^6.3.5"
   },
-  "optionalDependencies": {
-    "@types/mysql": "^2.15.6"
+  "babel": {
+    "ignore": [
+      "node_modules"
+    ],
+    "presets": [
+      "env"
+    ]
   },
+  "optionalDependencies": {},
   "files": [
     "LICENSE",
     "README.md",
