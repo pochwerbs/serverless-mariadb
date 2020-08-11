@@ -16,3 +16,9 @@ coverage
 
 # Babel
 .compiled
+
+# test files
+test.js
+
+# Vscode files
+.vscode
