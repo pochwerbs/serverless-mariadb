@@ -13,3 +13,6 @@ coverage
 
 # Serverless
 .serverless
+
+# Babel
+.compiled
