@@ -5,7 +5,7 @@
  * More detail regarding the MariaDB module can be found here:
  * https://github.com/mariadb-corporation/mariadb-connector-nodejs
  * @author Mario Muñoz <poch.muro@outlook.com>
- * @version 0.0.3
+ * @version 0.0.4
  * @license MIT
  */
 
@@ -297,6 +297,11 @@ export default (params) => {
 
   } // end killZombieConnections
 
+  // Escape function
+  const escape = (value) => {
+    return client.escape(value)
+  }
+
 
   /********************************************************************/
   /**  TRANSACTION MANAGEMENT                                        **/
@@ -391,6 +396,7 @@ export default (params) => {
     config,
     query,
     end,
+    escape,
     quit,
     transaction,
     getCounter,
