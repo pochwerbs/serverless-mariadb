@@ -183,7 +183,7 @@ export default (params) => {
   const query = async (...args) => {
 
     // Establish connection
-    client === null && await connect()
+    await connect()
 
     // Run the query
     return new PromiseLibrary((resolve, reject) => {
