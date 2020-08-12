@@ -1,11 +1,11 @@
 'use strict'
 
 /**
- * This module manages MySQL connections in serverless applications.
- * More detail regarding the MySQL module can be found here:
- * https://github.com/mysqljs/mysql
- * @author Jeremy Daly <jeremy@jeremydaly.com>
- * @version 1.5.4
+ * This module manages MariaDB connections in serverless applications.
+ * More detail regarding the MariaDB module can be found here:
+ * https://github.com/mariadb-corporation/mariadb-connector-nodejs
+ * @author Mario Muñoz <poch.muro@outlook.com>
+ * @version 0.0.2
  * @license MIT
  */
 
@@ -183,7 +183,7 @@ export default (params) => {
   const query = async (...args) => {
 
     // Establish connection
-    await connect()
+    // await connect()
 
     // Run the query
     return new PromiseLibrary((resolve, reject) => {
@@ -199,10 +199,6 @@ export default (params) => {
               reject(err) // reject the promise with the error
             } else if (
               err && (/^PROTOCOL_ENQUEUE_AFTER_/.test(err.code)
-                || err.code === 'PROTOCOL_CONNECTION_LOST'
-                || err.code === 'PROTOCOL_CONNECTION_LOST'
-                || err.code === 'PROTOCOL_CONNECTION_LOST'
-                || err.code === 'PROTOCOL_CONNECTION_LOST'
                 || err.code === 'PROTOCOL_CONNECTION_LOST'
                 || err.code === 'EPIPE')
             ) {
