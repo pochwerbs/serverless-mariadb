@@ -5,7 +5,7 @@
  * More detail regarding the MariaDB module can be found here:
  * https://github.com/mariadb-corporation/mariadb-connector-nodejs
  * @author Mario Muñoz <poch.muro@outlook.com>
- * @version 0.0.2
+ * @version 0.0.3
  * @license MIT
  */
 
